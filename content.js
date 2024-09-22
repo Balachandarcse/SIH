@@ -4,126 +4,129 @@ chrome.storage.sync.get('isEnabled', ({ isEnabled }) => {
     }
 });
 
-let currentTooltip = null; // Store reference to the current tooltip
+let currentTooltip = null;
+let currentRadioButton = null;
+let lastHoveredLink = null;
 
 function handleMouseOver(event) {
-    // Prevent interaction with links if the cursor is over the tooltip
-    if (event.target.closest('.tooltip')) {
-        return;
-    }
-
     const target = event.target.closest('a[href]');
-    if (target) {
+    
+    if (target && target !== lastHoveredLink) {
+        lastHoveredLink = target;
         const link = target.href;
         const truncatedLink = link.length > 50 ? link.substring(0, 50) + "..." : link;
 
-        // Remove the existing tooltip if it's already displayed
-        if (currentTooltip) {
-            currentTooltip.remove();
-        }
+        if (currentTooltip) currentTooltip.remove();
+        if (currentRadioButton) currentRadioButton.remove();
 
-        // Send a message to background.js to analyze the link with the AI model
-        chrome.runtime.sendMessage({ action: 'analyzeLink', link }, (response) => {
-            const safetyStatus = response.safetyStatus || 'UNKNOWN'; // Default to UNKNOWN if no response
+        const rect = target.getBoundingClientRect();
 
-            // Create the tooltip container
+        const radioButton = document.createElement('input');
+        radioButton.type = 'radio';
+        radioButton.style.position = 'absolute';
+        radioButton.style.width = '22px';
+        radioButton.style.height = '22px';
+        radioButton.style.left = `${rect.left + window.scrollX - 30}px`;
+        radioButton.style.top = `${rect.top + window.scrollY}px`;
+        radioButton.style.zIndex = 1000;
+
+        document.body.appendChild(radioButton);
+        currentRadioButton = radioButton;
+
+        radioButton.addEventListener('click', () => {
             const tooltip = document.createElement('div');
-            tooltip.classList.add('tooltip'); // Add a class for reference
+            tooltip.classList.add('tooltip');
             tooltip.style.position = 'absolute';
-            tooltip.style.backgroundColor = '#333';
-            tooltip.style.color = '#fff';
-            tooltip.style.borderRadius = '8px';
-            tooltip.style.padding = '12px 16px';
-            tooltip.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.2)';
-            tooltip.style.zIndex = 1000;
-            tooltip.style.left = `${event.pageX + 10}px`;
-            tooltip.style.top = `${event.pageY + 10}px`;
+            tooltip.style.backgroundColor = '#2d2d2d';
+            tooltip.style.color = '#f5f5f5';
+            tooltip.style.borderRadius = '10px';
+            tooltip.style.padding = '16px';
+            tooltip.style.boxShadow = '0 4px 16px rgba(0, 0, 0, 0.4)';
+            tooltip.style.zIndex = 1001;
+            tooltip.style.left = `${rect.right + window.scrollX + 10}px`;
+            tooltip.style.top = `${rect.top + window.scrollY}px`;
             tooltip.style.fontFamily = 'Arial, sans-serif';
             tooltip.style.transition = 'opacity 0.3s ease-in-out';
             tooltip.style.opacity = 0;
-            tooltip.style.pointerEvents = 'auto'; // Tooltip remains clickable
-            tooltip.style.maxWidth = '300px';
+            tooltip.style.pointerEvents = 'auto';
+            tooltip.style.maxWidth = '320px';
             tooltip.style.fontSize = '14px';
+            tooltip.style.display = 'flex';
+            tooltip.style.flexDirection = 'column';
+            tooltip.style.gap = '8px';
 
-            // Tooltip content with modern design and "Show full URL" functionality
             tooltip.innerHTML = `
-                <div style="font-weight: bold; font-size: 16px; margin-bottom: 4px; color: ${getSafetyColor(safetyStatus)};">
-                    ${safetyStatus}
+                <div style="font-weight: bold; font-size: 18px; margin-bottom: 4px; color: #00C853;">SAFE</div>
+                <div style="color: #B0BEC5;">Risk: This link appears safe</div>
+                <div style="color: #90A4AE;">Actual URL: <span id="displayed-url">${truncatedLink}</span> 
+                    <a id="show-full-url" style="color: #64B5F6; text-decoration: underline; cursor: pointer;">Show full URL</a>
                 </div>
-                <div style="margin-bottom: 8px;">Risk: This link appears ${safetyStatus.toLowerCase()}</div>
-                <div id="shortLink" style="word-break: break-all; margin-bottom: 12px;">
-                    Actual URL: <span style="color: #BBDEFB;">${truncatedLink}</span>
-                    <a href="#" id="showFullLink" style="color: #00C853; text-decoration: underline; cursor: pointer;">Show full URL</a>
+                <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+                    <button id="vmButton" style="
+                        background-color: #1E88E5;
+                        border: none;
+                        color: white;
+                        padding: 8px 12px;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-weight: bold;
+                        flex: 1;
+                        margin-right: 10px;
+                    ">Open in VM</button>
+                    <button id="closeTooltipButton" style="
+                        background-color: #FF5252;
+                        border: none;
+                        color: white;
+                        padding: 8px 12px;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-weight: bold;
+                        flex: 1;
+                    ">Cancel</button>
                 </div>
-                <div id="fullLink" style="display: none; word-break: break-all; margin-bottom: 12px;">
-                    Actual URL: <span style="color: #BBDEFB;">${link}</span>
-                </div>
-                <button style="
-                    background-color: #1565C0;
-                    border: none;
-                    color: white;
-                    padding: 8px 12px;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    font-weight: bold;
-                    margin-right: 10px;
-                " id="openInVMButton">Open this link in VM</button>
-                <button style="
-                    background-color: #FF3D00;
-                    border: none;
-                    color: white;
-                    padding: 8px 12px;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    font-weight: bold;
-                " id="cancelButton">Cancel</button>
             `;
 
-            // Animate the tooltip
-            setTimeout(() => {
-                tooltip.style.opacity = 1;
-            }, 50);
+            // Prevent links from being detected when hovering over the popup
+            tooltip.addEventListener('mouseover', (e) => e.stopPropagation());
 
-            document.body.appendChild(tooltip);
-            currentTooltip = tooltip; // Store the current tooltip
-
-            // Add event listener for "Show full URL"
-            const showFullLink = tooltip.querySelector('#showFullLink');
-            const fullLinkDiv = tooltip.querySelector('#fullLink');
-            const shortLinkDiv = tooltip.querySelector('#shortLink');
-
-            showFullLink.addEventListener('click', (e) => {
-                e.preventDefault();
-                shortLinkDiv.style.display = 'none';
-                fullLinkDiv.style.display = 'block';
-            });
-
-            // Handle opening the link in a new tab
-            const openInVMButton = tooltip.querySelector('#openInVMButton');
-            openInVMButton.addEventListener('click', () => {
-                window.open(link, '_blank'); // Open the link in a new tab
-            });
-
-            // Handle cancel button
-            const cancelButton = tooltip.querySelector('#cancelButton');
-            cancelButton.addEventListener('click', () => {
+            // Add cancel button functionality
+            tooltip.querySelector('#closeTooltipButton').addEventListener('click', () => {
                 if (currentTooltip) {
                     currentTooltip.remove();
                     currentTooltip = null;
                 }
             });
+
+            // Add VM button functionality
+            tooltip.querySelector('#vmButton').addEventListener('click', () => {
+                alert('Open this link in VM functionality here.');
+            });
+
+            // Show full URL on click
+            tooltip.querySelector('#show-full-url').addEventListener('click', () => {
+                tooltip.querySelector('#displayed-url').textContent = link;
+                tooltip.querySelector('#show-full-url').style.display = 'none'; // Hide the "Show full URL" link
+            });
+
+            if (currentTooltip) {
+                currentTooltip.remove();
+            }
+            
+            document.body.appendChild(tooltip);
+            currentTooltip = tooltip;
+
+            setTimeout(() => {
+                tooltip.style.opacity = 1;
+            }, 50);
         });
     }
 }
 
-// Helper function to set color based on safety status
-function getSafetyColor(status) {
-    switch (status) {
-        case 'SAFE':
-            return '#00C853'; // Green for safe
-        case 'DANGEROUS':
-            return '#FF3D00'; // Red for dangerous
-        default:
-            return '#FFC107'; // Yellow for unknown
+document.addEventListener('mouseout', (event) => {
+    const target = event.target.closest('a[href]');
+    if (target && event.relatedTarget && !event.relatedTarget.closest('a[href]')) {
+        if (currentRadioButton && target !== lastHoveredLink) {
+            // Keep the tooltip until a new link is hovered or cancel is clicked
+        }
     }
-}
+});

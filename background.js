@@ -1,3 +1,4 @@
+
 chrome.runtime.onInstalled.addListener(() => {
     chrome.storage.sync.set({ enabled: false });
 });
@@ -13,7 +14,7 @@ chrome.action.onClicked.addListener((tab) => {
             });
 
             if (!newStatus) {
-                disableExtension();
+                disableExtension(); // Disable and remove all elements if extension is turned off
             }
         });
     });
@@ -28,10 +29,12 @@ function disableExtension() {
                     // Remove all listeners and clear any extension-related UI elements
                     document.removeEventListener('mouseover', handleMouseOver);
                     document.removeEventListener('mouseout', handleMouseOut);
-                    const tooltip = document.getElementById('tooltip');
-                    if (tooltip) {
-                        tooltip.remove();
-                    }
+
+                    // Remove any existing tooltips and radio buttons
+                    const tooltips = document.querySelectorAll('.tooltip');
+                    const radioButtons = document.querySelectorAll('input[type="radio"]');
+                    tooltips.forEach(tooltip => tooltip.remove());
+                    radioButtons.forEach(radio => radio.remove());
                 }
             });
         });
@@ -45,51 +48,11 @@ function toggleHoverDetection(isEnabled) {
     } else {
         document.removeEventListener('mouseover', handleMouseOver);
         document.removeEventListener('mouseout', handleMouseOut);
-        const tooltip = document.getElementById('tooltip');
-        if (tooltip) {
-            tooltip.remove();
-        }
-    }
-}
 
-// AI Model Integration
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.action === 'analyzeLink') {
-        const link = message.link;
-
-        // Call your cloud-based AI model to analyze the link
-        analyzeLinkWithAIModel(link).then((safetyStatus) => {
-            sendResponse({ safetyStatus });
-        }).catch((error) => {
-            console.error('Error analyzing the link:', error);
-            sendResponse({ safetyStatus: 'UNKNOWN' }); // In case of an error, return UNKNOWN
-        });
-
-        // Return true to indicate that sendResponse will be called asynchronously
-        return true;
-    }
-});
-
-// Function to analyze the link using your cloud-based AI model
-async function analyzeLinkWithAIModel(link) {
-    try {
-        // Send HTTP request to your AI model's API endpoint
-        const response = await fetch('https://your-ai-model-cloud-endpoint.com/analyze', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer your_api_token', // If your API requires authentication
-            },
-            body: JSON.stringify({ url: link }),
-        });
-
-        // Parse the response from the AI model
-        const data = await response.json();
-
-        // Extract and return the safety status from the response
-        return data.safetyStatus || 'UNKNOWN'; // Adjust this according to your API response structure
-    } catch (error) {
-        console.error('Error calling AI model:', error);
-        return 'UNKNOWN'; // In case of an error, return UNKNOWN
+        // Clean up any remaining tooltips and radio buttons
+        const tooltips = document.querySelectorAll('.tooltip');
+        const radioButtons = document.querySelectorAll('input[type="radio"]');
+        tooltips.forEach(tooltip => tooltip.remove());
+        radioButtons.forEach(radio => radio.remove());
     }
 }
