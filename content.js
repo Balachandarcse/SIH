@@ -54,6 +54,8 @@ function handleMouseOver(event) {
             tooltip.style.display = 'flex';
             tooltip.style.flexDirection = 'column';
             tooltip.style.gap = '8px';
+            tooltip.style.wordWrap = 'break-word';  // Prevent URL overflow
+            tooltip.style.overflowWrap = 'break-word';  // Break long words properly
 
             tooltip.innerHTML = `
                 <div style="font-weight: bold; font-size: 18px; margin-bottom: 4px; color: #00C853;">SAFE</div>
